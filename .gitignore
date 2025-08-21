@@ -1,4 +1,6 @@
+# ============================================================================
 # Python
+# ============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -16,72 +18,269 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Virtual environments
+# ============================================================================
+# Virtual Environments
+# ============================================================================
 venv/
 ENV/
 env/
 .venv
+.env
+venv.bak/
+env.bak/
 
 # Conda
 conda-meta/
 *.conda
 *.tar.bz2
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
+# ============================================================================
+# Machine Learning / Deep Learning
+# ============================================================================
+# Model checkpoints
+*.pth
+*.pt
+*.pkl
+*.pickle
+*.ckpt
+*.h5
+*.hdf5
+*.pb
+*.onnx
+*.safetensors
+!models/.gitkeep
 
 # Training outputs
 outputs/experiments/*/
+outputs/*/
+!outputs/.gitkeep
 !outputs/experiments/.gitkeep
-*.pth
-*.pkl
-*.ckpt
 events.out.tfevents.*
+*.tfevents.*
+tensorboard/
+wandb/
+mlruns/
+lightning_logs/
+
+# Logs
 *.log
+logs/
+*.out
+*.err
 
-# Data (keep structure but not files)
-data/train/*.jpg
-data/train/*.jpeg
-data/train/*.png
-data/valid/*.jpg
-data/valid/*.jpeg
-data/valid/*.png
-data/test/*.jpg
-data/test/*.jpeg
-data/test/*.png
+# ============================================================================
+# Detectron2 / Mask2Former Specific
+# ============================================================================
+# CUDA compilation artifacts
+Mask2Former/mask2former/modeling/pixel_decoder/ops/build/
+Mask2Former/mask2former/modeling/pixel_decoder/ops/dist/
+Mask2Former/mask2former/modeling/pixel_decoder/ops/*.egg-info/
+*.cuda
+*.o
+*.a
 
-# Models
-models/*.pth
-models/*.pkl
-models/*.ckpt
-!models/.gitkeep
+# Config overrides
+configs/mask2former/*_local.yaml
+configs/mask2former/*_test.yaml
+configs/mask2former/*_debug.yaml
 
-# Temporary files
-*.tmp
-*.bak
-.cache/
+# Inference outputs
+inference_results/
+predictions/
+visualizations/
 
-# Documentation build
+# ============================================================================
+# Data
+# ============================================================================
+# Images
+data/**/*.jpg
+data/**/*.jpeg
+data/**/*.png
+data/**/*.gif
+data/**/*.bmp
+data/**/*.tiff
+data/**/*.svg
+data/**/*.webp
+
+# Annotations (keep empty structure)
+data/**/_annotations.coco.json
+data/**/*.json
+!data/**/.gitkeep
+
+# Compressed files
+data/**/*.zip
+data/**/*.tar
+data/**/*.tar.gz
+data/**/*.rar
+data/**/*.7z
+
+# ============================================================================
+# IDE and Editors
+# ============================================================================
+# VSCode
+.vscode/
+*.code-workspace
+.history/
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*.swn
+*~
+.vim/
+Session.vim
+
+# Emacs
+*~
+\#*\#
+.\#*
+.emacs.desktop
+.emacs.desktop.lock
+
+# ============================================================================
+# Jupyter Notebooks
+# ============================================================================
+.ipynb_checkpoints/
+*.ipynb
+!notebooks/*.ipynb
+!docs/examples/*.ipynb
+
+# ============================================================================
+# Testing and Coverage
+# ============================================================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+*.cover
+*.py,cover
+.cache
+nosetests.xml
+coverage.xml
+*.coveragerc
+
+# ============================================================================
+# Documentation
+# ============================================================================
 docs/_build/
 docs/_static/
 docs/_templates/
+docs/api/
+site/
+.mkdocs.yml
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.hypothesis/
+# ============================================================================
+# OS Files
+# ============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ============================================================================
+# Temporary and Backup Files
+# ============================================================================
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+.cache/
+tmp/
+temp/
+
+# ============================================================================
+# Security and Credentials
+# ============================================================================
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.crt
+*.p12
+secrets/
+credentials/
+config/secrets.yaml
+
+# ============================================================================
+# Package Managers
+# ============================================================================
+# npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================================================
+# Project Specific
+# ============================================================================
+# Keep .gitkeep files
+!**/.gitkeep
+
+# Allow specific config files
+!configs/mask2former/default.yaml
+
+# Profiling
+*.prof
+*.lprof
+profile_output/
+
+# Debugging
+.pdb_history
+
+# Compiled CUDA kernels
+*.cu.o
+*.cu.obj
+
+# Model zoo downloads
+pretrained_models/
+downloaded_models/
