@@ -16,8 +16,8 @@ Production-ready Mask2Former training pipeline using Detectron2. Successfully tr
 # Clone and setup
 git clone https://github.com/kevinphangh/mask2former-detectron2.git
 cd mask2former-detectron2
-chmod +x setup_mask2former.sh
-./setup_mask2former.sh
+chmod +x setup.sh
+./setup.sh
 ```
 
 If manual setup needed:
@@ -41,10 +41,10 @@ python setup.py build install
 ### 2. Train
 
 ```bash
-python train_mask2former.py
+python train.py
 ```
 
-Default configuration (1000 iterations, batch size 2) works well for small datasets. Model saves to `outputs/mask2former_v2/`.
+Default configuration (1000 iterations, batch size 2) works well for small datasets. Model saves to `outputs/training_results/`.
 
 ## Dataset Format
 
@@ -61,7 +61,7 @@ data/
 
 ## Configuration
 
-Key parameters in `train_mask2former.py`:
+Key parameters in `train.py`:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
@@ -94,8 +94,8 @@ from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 
 cfg = get_cfg()
-cfg.merge_from_file("outputs/mask2former_v2/config.yaml")
-cfg.MODEL.WEIGHTS = "outputs/mask2former_v2/model_final.pth"
+cfg.merge_from_file("outputs/training_results/config.yaml")
+cfg.MODEL.WEIGHTS = "outputs/training_results/model_final.pth"
 
 predictor = DefaultPredictor(cfg)
 outputs = predictor(image)
@@ -105,8 +105,8 @@ outputs = predictor(image)
 
 ```
 mask2former-detectron2/
-├── train_mask2former.py    # Training script
-├── setup_mask2former.sh    # Setup script
+├── train.py                # Training script
+├── setup.sh                # Setup script
 ├── Mask2Former/            # Mask2Former implementation
 ├── configs/                # Model configs
 ├── data/                   # Dataset

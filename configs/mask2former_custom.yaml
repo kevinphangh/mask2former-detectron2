@@ -1,22 +1,22 @@
-# Configuration for Mask2Former with Swin-T backbone for cylinder detection
-# Based on maskformer2_swin_tiny_bs16_50ep.yaml
+# Mask2Former Custom Configuration
+# Instance segmentation with Swin-Tiny backbone
 
-# Inherit from base config
+# Base configuration
 _BASE_: "../Mask2Former/configs/coco/instance-segmentation/swin/maskformer2_swin_tiny_bs16_50ep.yaml"
 
 # Model Configuration
 MODEL:
-  # Use CUDA if available
+  # Device
   DEVICE: "cuda"
   
-  # Mask2Former specific
+  # Mask2Former parameters
   MASK_FORMER:
     NUM_OBJECT_QUERIES: 100
     CLASS_WEIGHT: 2.0
     DICE_WEIGHT: 5.0
     MASK_WEIGHT: 5.0
     
-  # Single class: pickable_surface only (simplified from 2 classes)
+  # Number of classes (adjust for your dataset)
   SEM_SEG_HEAD:
     NUM_CLASSES: 1
     
@@ -39,8 +39,8 @@ MODEL:
 
 # Dataset Configuration
 DATASETS:
-  TRAIN: ("cylinders_train",)
-  TEST: ("cylinders_val",)
+  TRAIN: ("custom_train",)
+  TEST: ("custom_val",)
 
 # Data Loader
 DATALOADER:
@@ -106,7 +106,4 @@ TEST:
   DETECTIONS_PER_IMAGE: 100
 
 # Output Configuration
-OUTPUT_DIR: "./outputs"
-
-# Version
-VERSION: 2
+OUTPUT_DIR: "./outputs/training_results"

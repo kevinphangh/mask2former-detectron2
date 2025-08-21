@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Training script for Mask2Former with proper mask loading.
+Mask2Former Training Script
+Trains instance segmentation models on custom COCO-format datasets.
 """
 
 import argparse
@@ -82,13 +83,13 @@ def main():
     print("\n📊 Registering datasets...")
     
     # Clear existing registrations
-    for name in ["cylinders_train", "cylinders_val"]:
+    for name in ["custom_train", "custom_val"]:
         if name in DatasetCatalog.list():
             DatasetCatalog.remove(name)
             MetadataCatalog.remove(name)
     
     register_coco_instances(
-        "cylinders_train", 
+        "custom_train", 
         {}, 
         "data/train/_annotations.coco.json",
         "data/train"
@@ -97,7 +98,7 @@ def main():
     
     if Path("data/valid/_annotations.coco.json").exists():
         register_coco_instances(
-            "cylinders_val",
+            "custom_val",
             {},
             "data/valid/_annotations.coco.json",
             "data/valid"
@@ -116,8 +117,8 @@ def main():
     # Override settings for our dataset
     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
     cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 2  # Number of classes
-    cfg.DATASETS.TRAIN = ("cylinders_train",)
-    cfg.DATASETS.TEST = ("cylinders_val",) if Path("data/valid/_annotations.coco.json").exists() else ()
+    cfg.DATASETS.TRAIN = ("custom_train",)
+    cfg.DATASETS.TEST = ("custom_val",) if Path("data/valid/_annotations.coco.json").exists() else ()
     
     # Training parameters
     cfg.SOLVER.IMS_PER_BATCH = 2
@@ -139,7 +140,7 @@ def main():
     cfg.INPUT.MIN_SIZE_TEST = 800
     
     # Output
-    cfg.OUTPUT_DIR = "outputs/mask2former_v2"
+    cfg.OUTPUT_DIR = "outputs/training_results"
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     
     # DataLoader
