@@ -1,16 +1,16 @@
 # Core dependencies for Mask2Former with Detectron2
-# Python 3.8+ recommended
+# Python 3.8+ required
 
-# PyTorch (install with CUDA support as needed)
-# torch>=1.10.0
-# torchvision>=0.11.0
+# PyTorch - Install with conda for CUDA support:
+# conda install pytorch==1.9.0 torchvision==0.10.0 cudatoolkit=11.1 -c pytorch -c nvidia
 
-# Detectron2 (install from GitHub)
-# detectron2 @ git+https://github.com/facebookresearch/detectron2.git
+# Detectron2 - Install separately:
+# python -m pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.9/index.html
 
 # Computer Vision
 opencv-python>=4.5.0
 Pillow>=8.0.0
+timm>=0.4.12  # Required for Mask2Former
 
 # Data processing
 numpy>=1.19.0
