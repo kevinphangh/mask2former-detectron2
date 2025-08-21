@@ -44,8 +44,8 @@ def setup_cfg():
     cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     
     # IMPORTANT: Set number of classes for your dataset
-    # Change this to match your dataset (e.g., 1 for single class)
-    cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 1  # Single class for cylinders
+    # Dataset has 2 classes: low_diff and pickable_surface
+    cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 2  # Two classes in dataset
     
     # Swin-Small specific settings
     cfg.MODEL.SWIN.EMBED_DIM = 96
