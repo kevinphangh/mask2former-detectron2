@@ -1,0 +1,112 @@
+# Configuration for Mask2Former with Swin-T backbone for cylinder detection
+# Based on maskformer2_swin_tiny_bs16_50ep.yaml
+
+# Inherit from base config
+_BASE_: "../Mask2Former/configs/coco/instance-segmentation/swin/maskformer2_swin_tiny_bs16_50ep.yaml"
+
+# Model Configuration
+MODEL:
+  # Use CUDA if available
+  DEVICE: "cuda"
+  
+  # Mask2Former specific
+  MASK_FORMER:
+    NUM_OBJECT_QUERIES: 100
+    CLASS_WEIGHT: 2.0
+    DICE_WEIGHT: 5.0
+    MASK_WEIGHT: 5.0
+    
+  # Single class: pickable_surface only (simplified from 2 classes)
+  SEM_SEG_HEAD:
+    NUM_CLASSES: 1
+    
+  # Backbone configuration
+  BACKBONE:
+    NAME: "D2SwinTransformer"
+    
+  SWIN:
+    EMBED_DIM: 96
+    DEPTHS: [2, 2, 6, 2]
+    NUM_HEADS: [3, 6, 12, 24]
+    WINDOW_SIZE: 7
+    
+  # Weights - use pre-trained COCO model
+  WEIGHTS: "models/model_final_86143f.pkl"  # Download with setup.sh
+  
+  # Pixel mean and std (ImageNet)
+  PIXEL_MEAN: [123.675, 116.280, 103.530]
+  PIXEL_STD: [58.395, 57.120, 57.375]
+
+# Dataset Configuration
+DATASETS:
+  TRAIN: ("cylinders_train",)
+  TEST: ("cylinders_val",)
+
+# Data Loader
+DATALOADER:
+  NUM_WORKERS: 4
+  FILTER_EMPTY_ANNOTATIONS: True
+
+# Solver Configuration (Optimizer)
+SOLVER:
+  # Training schedule
+  IMS_PER_BATCH: 4  # Total batch size (adjust based on GPU memory)
+  BASE_LR: 0.0001  # Learning rate
+  
+  # Training duration
+  MAX_ITER: 10000  # Total training iterations
+  
+  # Learning rate schedule
+  STEPS: (7000, 9000)  # Decrease LR at these iterations
+  GAMMA: 0.1  # LR decay factor
+  
+  # Warmup
+  WARMUP_FACTOR: 1.0
+  WARMUP_ITERS: 10
+  WARMUP_METHOD: "linear"
+  
+  # Weight decay
+  WEIGHT_DECAY: 0.05
+  
+  # Optimizer
+  OPTIMIZER: "ADAMW"
+  BACKBONE_MULTIPLIER: 0.1  # Lower LR for backbone
+  
+  # Gradient clipping
+  CLIP_GRADIENTS:
+    ENABLED: True
+    CLIP_TYPE: "full_model"
+    CLIP_VALUE: 0.01
+    NORM_TYPE: 2.0
+  
+  # Mixed precision training
+  AMP:
+    ENABLED: True
+
+# Input Configuration
+INPUT:
+  # Image size
+  MIN_SIZE_TRAIN: (480, 512, 544, 576, 608, 640)
+  MAX_SIZE_TRAIN: 1333
+  MIN_SIZE_TEST: 640
+  MAX_SIZE_TEST: 1333
+  
+  # Data augmentation
+  RANDOM_FLIP: "horizontal"
+  
+  # Image format
+  FORMAT: "BGR"
+  
+  # Mask format for instance segmentation
+  MASK_FORMAT: "polygon"
+
+# Test Configuration
+TEST:
+  EVAL_PERIOD: 500  # Evaluate every N iterations
+  DETECTIONS_PER_IMAGE: 100
+
+# Output Configuration
+OUTPUT_DIR: "./outputs"
+
+# Version
+VERSION: 2
