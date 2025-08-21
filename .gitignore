@@ -20,41 +20,16 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Virtual environments
 venv/
 ENV/
 env/
 .venv
 
-# Detectron2 & Mask2Former
-Mask2Former/
-detectron2/
-models/*.pkl
-models/*.pth
-
-# Dataset (often large)
-data/
-datasets/
-*.jpg
-*.jpeg
-*.png
-*.json
-!configs/*.json
-!examples/*.json
-
-# Outputs
-outputs/
-output/
-runs/
-checkpoints/
-*.pth
-*.pkl
-*.ckpt
-
-# Logs
-*.log
-logs/
-tensorboard/
+# Conda
+conda-meta/
+*.conda
+*.tar.bz2
 
 # IDE
 .vscode/
@@ -68,15 +43,45 @@ tensorboard/
 .ipynb_checkpoints/
 *.ipynb
 
+# Training outputs
+outputs/experiments/*/
+!outputs/experiments/.gitkeep
+*.pth
+*.pkl
+*.ckpt
+events.out.tfevents.*
+*.log
+
+# Data (keep structure but not files)
+data/train/*.jpg
+data/train/*.jpeg
+data/train/*.png
+data/valid/*.jpg
+data/valid/*.jpeg
+data/valid/*.png
+data/test/*.jpg
+data/test/*.jpeg
+data/test/*.png
+
+# Models
+models/*.pth
+models/*.pkl
+models/*.ckpt
+!models/.gitkeep
+
+# Temporary files
+*.tmp
+*.bak
+.cache/
+
+# Documentation build
+docs/_build/
+docs/_static/
+docs/_templates/
+
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
-
-# Documentation
-docs/_build/
-
-# Temporary files
-*.tmp
-temp/
-tmp/
+.tox/
+.hypothesis/

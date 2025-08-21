@@ -2,53 +2,47 @@
 
 Production-ready Mask2Former training pipeline using Detectron2. Successfully trains transformer-based universal segmentation models with custom COCO datasets.
 
-## Requirements
+## 📁 Project Structure
 
-- Linux/WSL2 with NVIDIA GPU
-- Python 3.8+, CUDA 11.1+
-- gcc-11 (for CUDA 12 compatibility)
+```
+mask2former-detectron2/
+├── src/                     # Source code
+│   ├── training/           # Training modules
+│   │   ├── trainer.py      # Mask2Former trainer
+│   │   └── data_loader.py  # Data loading utilities
+│   └── utils/              # Utility functions
+│       └── dataset.py      # Dataset registration
+├── scripts/                 # Executable scripts
+│   ├── train.py            # Training script
+│   └── setup.sh            # Environment setup
+├── configs/                 # Configuration files
+│   └── mask2former/
+│       └── default.yaml    # Default config
+├── data/                    # Dataset directory
+│   ├── train/              # Training images & annotations
+│   ├── valid/              # Validation images & annotations
+│   └── test/               # Test images & annotations
+├── models/                  # Pre-trained models
+├── outputs/                 # Training outputs
+│   └── experiments/        # Experiment results
+├── Mask2Former/            # Mask2Former submodule
+└── requirements.txt        # Python dependencies
+```
 
-## Quick Start
+## 🚀 Quick Start
 
 ### 1. Setup Environment
 
 ```bash
-# Clone and setup
 git clone https://github.com/kevinphangh/mask2former-detectron2.git
 cd mask2former-detectron2
-chmod +x setup.sh
-./setup.sh
+chmod +x scripts/setup.sh
+./scripts/setup.sh
 ```
 
-If manual setup needed:
-```bash
-# Create conda environment
-conda create -n mask2former python=3.10 -y
-conda activate mask2former
+### 2. Prepare Dataset
 
-# Install PyTorch
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-
-# Install Detectron2
-pip install 'git+https://github.com/facebookresearch/detectron2.git'
-
-# Compile CUDA kernels (critical)
-cd Mask2Former/mask2former/modeling/pixel_decoder/ops
-export CC=/usr/bin/gcc-11 CXX=/usr/bin/g++-11
-python setup.py build install
-```
-
-### 2. Train
-
-```bash
-python train.py
-```
-
-Default configuration (1000 iterations, batch size 2) works well for small datasets. Model saves to `outputs/training_results/`.
-
-## Dataset Format
-
-COCO format with polygon segmentation masks:
+Place your COCO-format dataset in the `data/` directory:
 ```
 data/
 ├── train/
@@ -59,65 +53,102 @@ data/
     └── _annotations.coco.json
 ```
 
-## Configuration
+### 3. Train Model
 
-Key parameters in `train.py`:
+```bash
+python scripts/train.py
+```
+
+Training outputs will be saved to `outputs/experiments/latest/`.
+
+## ⚙️ Configuration
+
+Modify training parameters in `scripts/train.py`:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `NUM_CLASSES` | 2 | Number of object classes |
-| `IMS_PER_BATCH` | 2 | Batch size (GPU memory dependent) |
+| `IMS_PER_BATCH` | 2 | Batch size |
 | `BASE_LR` | 0.00025 | Learning rate |
 | `MAX_ITER` | 1000 | Training iterations |
 
-## Architecture
+For advanced configuration, edit `configs/mask2former/default.yaml`.
 
-Mask2Former uses:
-- **Backbone**: ResNet-50 or Swin Transformer
-- **Pixel Decoder**: Multi-scale deformable attention
-- **Transformer Decoder**: Masked attention with object queries
-- **Output**: Per-query class and mask predictions
+## 🏗️ Architecture
 
-## Troubleshooting
+The project follows a modular architecture:
+
+- **`src/training/`**: Core training components
+  - `trainer.py`: Custom Mask2Former trainer
+  - `data_loader.py`: Data loading with mask conversion
+  
+- **`src/utils/`**: Utility functions
+  - `dataset.py`: Dataset registration utilities
+  
+- **`scripts/`**: Executable scripts
+  - `train.py`: Main training entry point
+  - `setup.sh`: Environment setup script
+
+## 📊 Training Output
+
+```
+outputs/experiments/latest/
+├── model_final.pth         # Final trained model
+├── model_*.pth             # Checkpoints
+├── metrics.json            # Training metrics
+└── events.out.tfevents.*  # TensorBoard logs
+```
+
+## 🔧 Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| CUDA kernel compilation fails | Install gcc-11, set `CC=/usr/bin/gcc-11` |
-| Gradient clipping error | Use `CLIP_TYPE: "norm"` not `"full_model"` |
-| Missing masks error | Ensure polygon masks in COCO annotations |
-| Out of memory | Reduce batch size to 1 |
+| CUDA kernel compilation fails | Install gcc-11: `sudo apt install gcc-11 g++-11` |
+| Out of memory | Reduce batch size in `scripts/train.py` |
+| Missing masks | Ensure COCO annotations include segmentation polygons |
 
-## Inference
+## 📚 API Reference
 
+### Training
+```python
+from src.training import Mask2FormerTrainer
+from src.utils import register_datasets
+
+# Register datasets
+register_datasets(data_dir="data")
+
+# Train model
+trainer = Mask2FormerTrainer(cfg)
+trainer.train()
+```
+
+### Inference
 ```python
 from detectron2.engine import DefaultPredictor
-from detectron2.config import get_cfg
-
-cfg = get_cfg()
-cfg.merge_from_file("outputs/training_results/config.yaml")
-cfg.MODEL.WEIGHTS = "outputs/training_results/model_final.pth"
 
 predictor = DefaultPredictor(cfg)
 outputs = predictor(image)
 ```
 
-## Project Structure
+## 🛠️ Development
 
-```
-mask2former-detectron2/
-├── train.py                # Training script
-├── setup.sh                # Setup script
-├── Mask2Former/            # Mask2Former implementation
-├── configs/                # Model configs
-├── data/                   # Dataset
-└── outputs/                # Training results
+### Running Tests
+```bash
+python -m pytest tests/
 ```
 
-## References
+### Code Style
+```bash
+black src/ scripts/
+flake8 src/ scripts/
+```
+
+## 📝 License
+
+Apache 2.0 (Detectron2) and MIT (Mask2Former)
+
+## 🔗 References
 
 - [Mask2Former Paper](https://arxiv.org/abs/2112.01527)
 - [Official Repository](https://github.com/facebookresearch/Mask2Former)
-
-## License
-
-Apache 2.0 (Detectron2) and MIT (Mask2Former)
+- [Detectron2 Documentation](https://detectron2.readthedocs.io/)
