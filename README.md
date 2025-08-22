@@ -1,117 +1,76 @@
-# Mask2Former Training - Simplified
+# Mask2Former Training
 
-Simplified Mask2Former training pipeline for custom COCO-format datasets.
+Train Mask2Former models on custom COCO-format datasets with a simple config file.
 
-## Quick Start
+## Setup
 
-### 1. Setup Environment
 ```bash
-# Recommended: Create a virtual environment first
+# Create environment
 conda create -n mask2former python=3.10
 conda activate mask2former
 
-# Run setup script
+# Install dependencies
 bash scripts/setup.sh
 ```
 
-### 2. Prepare Your Dataset
-Place your COCO-format dataset in:
-- `data/train/` - Training images and `_annotations.coco.json`
-- `data/valid/` - Validation images and `_annotations.coco.json`
-- `data/test/` - Test images and `_annotations.coco.json`
+## Dataset
 
-### 3. Train the Model
+Put your COCO-format data in:
+- `data/train/` with `_annotations.coco.json`
+- `data/valid/` with `_annotations.coco.json`
+
+## Training
+
+1. Edit `configs/custom_training_config.yaml`:
+```yaml
+MODEL:
+  NUM_CLASSES: 2    # Your number of classes
+
+TRAINING:
+  BATCH_SIZE: 2      # Reduce if GPU memory issues
+  MAX_EPOCHS: 50     # How long to train
+```
+
+2. Run training:
 ```bash
-python train.py
+./train.sh
 ```
-or
+
+## Key Config Options
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `MODEL.NAME` | Model size (swin_tiny/small/base) | swin_tiny |
+| `MODEL.NUM_CLASSES` | Number of object classes | 2 |
+| `TRAINING.MODE` | "epochs" or "iterations" | iterations |
+| `TRAINING.BATCH_SIZE` | Batch size | 2 |
+| `OPTIMIZER.BASE_LR` | Learning rate | 0.00005 |
+
+## Commands
+
 ```bash
-LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6 python train.py
+# Train with default config
+./train.sh
+
+# Train with custom config
+./train.sh configs/my_config.yaml
+
+# Resume training
+./train.sh --resume
 ```
 
-## Configuration
+## Output
 
-Edit `train.py` to configure training:
+Models saved to `outputs/{model_name}_{timestamp}/`
 
-```python
-# Model selection (line 40)
-MODEL_NAME = "swin_tiny"  # Options: swin_tiny, swin_small, swin_base
+## GPU Requirements
 
-# Dataset classes (line 196)
-cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 2  # Your number of classes
-
-# Training parameters (lines 199-201)
-cfg.SOLVER.IMS_PER_BATCH = 1      # Batch size
-cfg.SOLVER.BASE_LR = 0.00005      # Learning rate
-cfg.SOLVER.MAX_ITER = 3000        # Training iterations
-```
-
-### Model Requirements
-
-| Model | GPU Memory | Performance |
-|-------|------------|-------------|
-| `swin_tiny` | 6GB | Good baseline |
-| `swin_small` | 8GB | Better accuracy |
-| `swin_base` | 16GB | Best accuracy |
-
-## Training Output
-
-Results are saved to `outputs/{model_name}/`:
-- `model_*.pth` - Checkpoints every 500 iterations
-- `model_final.pth` - Final trained model
-- `metrics.json` - Training metrics
-- `log.txt` - Training log
-
-## Resume Training
-
-To resume from the last checkpoint:
-```bash
-python train.py --resume
-```
-
-## Memory Optimization
-
-For limited GPU memory, the script automatically uses:
-- Batch size of 1
-- Reduced image sizes (384-768px)
-- Mixed precision training
-
-## Evaluation Metrics
-
-The model is evaluated every 500 iterations with COCO metrics:
-- **AP**: Average Precision (main metric)
-- **AP50**: AP at IoU=0.5
-- **AP75**: AP at IoU=0.75
-
-## Requirements
-
-- GPU with 6GB+ VRAM
-- CUDA 11.8 or 12.1
-- Python 3.8+
-- PyTorch 2.0+
-- Detectron2
+- **swin_tiny**: 6GB VRAM
+- **swin_small**: 8GB VRAM  
+- **swin_base**: 16GB VRAM
 
 ## Troubleshooting
 
-### CUDA Out of Memory
-- Switch to `swin_tiny` model
-- Reduce batch size to 1
-- Reduce image sizes in configuration
+**Out of memory**: Reduce `BATCH_SIZE` to 1 or use smaller model
 
-### Deprecation Warnings
-The script automatically suppresses known deprecation warnings from PyTorch AMP and timm.
-
-### CUDA Kernel Compilation Failed
-Training will still work but may be slower. To fix:
-```bash
-# Install CUDA toolkit (Ubuntu/WSL)
-sudo apt install nvidia-cuda-toolkit
-
-# Re-run setup
-bash scripts/setup.sh
-```
-
-## References
-
-- [Mask2Former Paper](https://arxiv.org/abs/2112.01527)
-- [Official Repository](https://github.com/facebookresearch/Mask2Former)
+**Library error**: Use `./train.sh` (it handles library paths automatically)

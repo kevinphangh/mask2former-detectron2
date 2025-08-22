@@ -1,0 +1,90 @@
+# Mask2Former Training Configuration
+
+# Model
+MODEL:
+  NAME: "swin_tiny"  # Options: swin_tiny, swin_small, swin_base
+  NUM_CLASSES: 2     # Number of classes (excluding background)
+  WEIGHTS: ""        # Leave empty for default pretrained weights
+
+# Dataset
+DATASET:
+  TRAIN_JSON: "data/train/_annotations.coco.json"
+  TRAIN_DIR: "data/train"
+  VAL_JSON: "data/valid/_annotations.coco.json"
+  VAL_DIR: "data/valid"
+  TRAIN_NAME: "custom_train"
+  VAL_NAME: "custom_val"
+
+# Training
+TRAINING:
+  MODE: "epochs"  # "iterations" or "epochs"
+  MAX_ITERATIONS: 3000
+  MAX_EPOCHS: 50
+  IMAGES_PER_EPOCH: 84
+  BATCH_SIZE: 2
+  NUM_WORKERS: 4
+
+# Optimizer
+OPTIMIZER:
+  BASE_LR: 0.00005
+  LR_DECAY_STEPS: [2000, 2700]  # For iterations mode
+  LR_DECAY_EPOCHS: [30, 40]     # For epochs mode
+  GAMMA: 0.1
+  WEIGHT_DECAY: 0.05
+  WEIGHT_DECAY_NORM: 0.0
+  WEIGHT_DECAY_EMBED: 0.0
+  BACKBONE_MULTIPLIER: 0.1
+  CLIP_GRADIENTS: True
+  CLIP_VALUE: 0.01
+  TYPE: "ADAMW"
+  WARMUP_ITERS: 10
+
+# Input
+INPUT:
+  MIN_SIZE_TRAIN: [384, 416, 448, 480, 512]
+  MAX_SIZE_TRAIN: 768
+  MIN_SIZE_TEST: 512
+  MAX_SIZE_TEST: 768
+  USE_LSJ: True
+  LSJ_MIN_SCALE: 0.1
+  LSJ_MAX_SCALE: 2.0
+  IMAGE_SIZE: 1024
+
+# Evaluation
+EVALUATION:
+  EVAL_PERIOD_ITERS: 500
+  EVAL_PERIOD_EPOCHS: 2
+  CHECKPOINT_PERIOD_ITERS: 500
+  CHECKPOINT_PERIOD_EPOCHS: 5
+
+# Output
+OUTPUT:
+  DIR: "outputs/{model_name}_{timestamp}"
+  MAX_CHECKPOINTS: 5
+
+# Performance
+PERFORMANCE:
+  USE_AMP: True
+  CUDNN_BENCHMARK: False
+
+# Advanced
+ADVANCED:
+  SEED: -1
+  NUM_QUERIES: 100
+  DEC_LAYERS: 10
+  DIM_FEEDFORWARD: 2048
+  HIDDEN_DIM: 256
+  DROPOUT: 0.0
+  NHEADS: 8
+  CLASS_WEIGHT: 2.0
+  DICE_WEIGHT: 5.0
+  MASK_WEIGHT: 5.0
+  NO_OBJECT_WEIGHT: 0.1
+  TRAIN_NUM_POINTS: 12544
+  OVERSAMPLE_RATIO: 3.0
+  IMPORTANCE_SAMPLE_RATIO: 0.75
+
+# Logging
+LOGGING:
+  VIS_PERIOD: 0
+  TENSORBOARD: True

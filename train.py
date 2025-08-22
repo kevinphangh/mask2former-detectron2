@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Mask2Former Training Script - Simplified Version
-Train instance segmentation models on custom COCO datasets.
+Mask2Former Training Script V2 - Configuration-based
+Train instance segmentation models using external YAML configuration.
 """
 
 import os
@@ -10,9 +10,11 @@ import copy
 import itertools
 import logging
 from pathlib import Path
+from datetime import datetime
 from collections import OrderedDict
 from typing import Any, Dict, List, Set
 import warnings
+import yaml
 
 # Suppress known deprecation warnings
 warnings.filterwarnings("ignore", message=".*torch.cuda.amp.autocast.*")
@@ -35,10 +37,7 @@ import detectron2.utils.comm as comm
 sys.path.insert(0, str(Path(__file__).parent / "Mask2Former"))
 from mask2former import COCOInstanceNewBaselineDatasetMapper, add_maskformer2_config
 
-# ==================== CONFIGURATION ====================
-# Select your model: "swin_tiny" (6GB GPU), "swin_small" (8GB), "swin_base" (16GB)
-MODEL_NAME = "swin_tiny"
-
+# Model configurations
 MODELS = {
     "swin_tiny": {
         "config": "Mask2Former/configs/coco/instance-segmentation/swin/maskformer2_swin_tiny_bs16_50ep.yaml",
@@ -55,28 +54,44 @@ MODELS = {
 }
 
 
-def register_datasets():
+def load_custom_config(config_path: str) -> dict:
+    """Load custom configuration from YAML file."""
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
+
+
+def register_datasets(custom_cfg: dict):
     """Register COCO format datasets."""
     train_registered = False
     val_registered = False
     
     # Clear existing registrations
-    for name in ["custom_train", "custom_val"]:
+    for name in [custom_cfg['DATASET']['TRAIN_NAME'], custom_cfg['DATASET']['VAL_NAME']]:
         if name in DatasetCatalog.list():
             DatasetCatalog.remove(name)
             MetadataCatalog.remove(name)
     
     # Register training dataset
-    train_json = Path("data/train/_annotations.coco.json")
+    train_json = Path(custom_cfg['DATASET']['TRAIN_JSON'])
     if train_json.exists():
-        register_coco_instances("custom_train", {}, str(train_json), "data/train")
+        register_coco_instances(
+            custom_cfg['DATASET']['TRAIN_NAME'], 
+            {}, 
+            str(train_json), 
+            custom_cfg['DATASET']['TRAIN_DIR']
+        )
         train_registered = True
         print("✓ Registered training dataset")
     
     # Register validation dataset
-    val_json = Path("data/valid/_annotations.coco.json")
+    val_json = Path(custom_cfg['DATASET']['VAL_JSON'])
     if val_json.exists():
-        register_coco_instances("custom_val", {}, str(val_json), "data/valid")
+        register_coco_instances(
+            custom_cfg['DATASET']['VAL_NAME'], 
+            {}, 
+            str(val_json), 
+            custom_cfg['DATASET']['VAL_DIR']
+        )
         val_registered = True
         print("✓ Registered validation dataset")
     
@@ -171,76 +186,127 @@ class Mask2FormerTrainer(DefaultTrainer):
         return optimizer
 
 
-def setup_cfg(args=None):
-    """Create configs and perform basic setups."""
+def setup_cfg(custom_cfg: dict, args=None):
+    """Create configs from custom YAML configuration."""
     cfg = get_cfg()
     add_deeplab_config(cfg)
     add_maskformer2_config(cfg)
     
     # Load model configuration
-    model_info = MODELS[MODEL_NAME]
+    model_name = custom_cfg['MODEL']['NAME']
+    model_info = MODELS[model_name]
     cfg.merge_from_file(model_info["config"])
-    cfg.MODEL.WEIGHTS = model_info["weights"]
     
-    # Check for local model
-    local_model = Path(f"models/maskformer2_{MODEL_NAME}.pkl")
-    if local_model.exists():
-        print(f"✓ Using local model: {local_model}")
-        cfg.MODEL.WEIGHTS = str(local_model)
+    # Set model weights
+    if custom_cfg['MODEL']['WEIGHTS']:
+        cfg.MODEL.WEIGHTS = custom_cfg['MODEL']['WEIGHTS']
+    else:
+        cfg.MODEL.WEIGHTS = model_info["weights"]
+        # Check for local model
+        local_model = Path(f"models/maskformer2_{model_name}.pkl")
+        if local_model.exists():
+            print(f"✓ Using local model: {local_model}")
+            cfg.MODEL.WEIGHTS = str(local_model)
     
     # Dataset configuration
-    cfg.DATASETS.TRAIN = ("custom_train",)
-    cfg.DATASETS.TEST = ("custom_val",) if Path("data/valid/_annotations.coco.json").exists() else ()
+    cfg.DATASETS.TRAIN = (custom_cfg['DATASET']['TRAIN_NAME'],)
+    val_json = Path(custom_cfg['DATASET']['VAL_JSON'])
+    cfg.DATASETS.TEST = (custom_cfg['DATASET']['VAL_NAME'],) if val_json.exists() else ()
     
-    # IMPORTANT: Set number of classes for your dataset
-    cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 2  # Adjust based on your dataset
+    # Set number of classes
+    cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = custom_cfg['MODEL']['NUM_CLASSES']
     
-    # Training parameters (optimized for 6GB GPU)
-    cfg.SOLVER.IMS_PER_BATCH = 2  # Batch size
-    cfg.SOLVER.BASE_LR = 0.00005  # Learning rate
+    # Training parameters
+    cfg.SOLVER.IMS_PER_BATCH = custom_cfg['TRAINING']['BATCH_SIZE']
+    cfg.SOLVER.BASE_LR = custom_cfg['OPTIMIZER']['BASE_LR']
     
-    # Choose between iteration-based or epoch-based configuration
-    USE_EPOCHS = False  # Set to True to use epoch-based configuration
-    
-    if USE_EPOCHS:
-        # Epoch-based configuration (84 images, batch size 2 = 42 iters/epoch)
-        IMAGES_PER_EPOCH = 84
-        ITERS_PER_EPOCH = IMAGES_PER_EPOCH // cfg.SOLVER.IMS_PER_BATCH
-        TARGET_EPOCHS = 50
-        cfg.SOLVER.MAX_ITER = TARGET_EPOCHS * ITERS_PER_EPOCH  # 50 epochs
-        cfg.SOLVER.STEPS = (30 * ITERS_PER_EPOCH, 40 * ITERS_PER_EPOCH)  # LR decay at 30, 40 epochs
-        cfg.SOLVER.CHECKPOINT_PERIOD = 5 * ITERS_PER_EPOCH  # Every 5 epochs
-        cfg.TEST.EVAL_PERIOD = 2 * ITERS_PER_EPOCH  # Every 2 epochs
+    # Configure based on training mode
+    if custom_cfg['TRAINING']['MODE'] == 'epochs':
+        # Epoch-based configuration
+        images_per_epoch = custom_cfg['TRAINING']['IMAGES_PER_EPOCH']
+        batch_size = custom_cfg['TRAINING']['BATCH_SIZE']
+        iters_per_epoch = images_per_epoch // batch_size
+        
+        cfg.SOLVER.MAX_ITER = custom_cfg['TRAINING']['MAX_EPOCHS'] * iters_per_epoch
+        
+        # Convert epoch steps to iterations
+        lr_epochs = custom_cfg['OPTIMIZER']['LR_DECAY_EPOCHS']
+        cfg.SOLVER.STEPS = tuple(e * iters_per_epoch for e in lr_epochs)
+        
+        # Convert evaluation periods
+        cfg.SOLVER.CHECKPOINT_PERIOD = custom_cfg['EVALUATION']['CHECKPOINT_PERIOD_EPOCHS'] * iters_per_epoch
+        cfg.TEST.EVAL_PERIOD = custom_cfg['EVALUATION']['EVAL_PERIOD_EPOCHS'] * iters_per_epoch
     else:
-        # Iteration-based configuration (current)
-        cfg.SOLVER.MAX_ITER = 3000  # ~71 epochs with batch size 2
-        cfg.SOLVER.STEPS = (2000, 2700)  # LR decay steps
-        cfg.SOLVER.CHECKPOINT_PERIOD = 500  # Every ~12 epochs
-        cfg.TEST.EVAL_PERIOD = 500  # Every ~12 epochs
+        # Iteration-based configuration
+        cfg.SOLVER.MAX_ITER = custom_cfg['TRAINING']['MAX_ITERATIONS']
+        cfg.SOLVER.STEPS = tuple(custom_cfg['OPTIMIZER']['LR_DECAY_STEPS'])
+        cfg.SOLVER.CHECKPOINT_PERIOD = custom_cfg['EVALUATION']['CHECKPOINT_PERIOD_ITERS']
+        cfg.TEST.EVAL_PERIOD = custom_cfg['EVALUATION']['EVAL_PERIOD_ITERS']
     
-    # Weight decay
-    cfg.SOLVER.WEIGHT_DECAY = 0.05
-    cfg.SOLVER.WEIGHT_DECAY_NORM = 0.0
-    cfg.SOLVER.WEIGHT_DECAY_EMBED = 0.0
-    cfg.SOLVER.BACKBONE_MULTIPLIER = 0.1
+    # Optimizer settings
+    cfg.SOLVER.WEIGHT_DECAY = custom_cfg['OPTIMIZER']['WEIGHT_DECAY']
+    cfg.SOLVER.WEIGHT_DECAY_NORM = custom_cfg['OPTIMIZER']['WEIGHT_DECAY_NORM']
+    cfg.SOLVER.WEIGHT_DECAY_EMBED = custom_cfg['OPTIMIZER']['WEIGHT_DECAY_EMBED']
+    cfg.SOLVER.BACKBONE_MULTIPLIER = custom_cfg['OPTIMIZER']['BACKBONE_MULTIPLIER']
+    cfg.SOLVER.GAMMA = custom_cfg['OPTIMIZER']['GAMMA']
+    cfg.SOLVER.OPTIMIZER = custom_cfg['OPTIMIZER']['TYPE']
+    cfg.SOLVER.WARMUP_ITERS = custom_cfg['OPTIMIZER']['WARMUP_ITERS']
     
-    # Input sizes (reduced for memory)
-    cfg.INPUT.MIN_SIZE_TRAIN = (384, 416, 448, 480, 512)
-    cfg.INPUT.MIN_SIZE_TEST = 512
-    cfg.INPUT.MAX_SIZE_TRAIN = 768
-    cfg.INPUT.MAX_SIZE_TEST = 768
+    # Gradient clipping
+    cfg.SOLVER.CLIP_GRADIENTS.ENABLED = custom_cfg['OPTIMIZER']['CLIP_GRADIENTS']
+    cfg.SOLVER.CLIP_GRADIENTS.CLIP_VALUE = custom_cfg['OPTIMIZER']['CLIP_VALUE']
+    cfg.SOLVER.CLIP_GRADIENTS.CLIP_TYPE = "full_model"
     
-    # Dataset mapper
-    cfg.INPUT.DATASET_MAPPER_NAME = "coco_instance_lsj"
+    # Input configuration
+    cfg.INPUT.MIN_SIZE_TRAIN = custom_cfg['INPUT']['MIN_SIZE_TRAIN']
+    cfg.INPUT.MIN_SIZE_TEST = custom_cfg['INPUT']['MIN_SIZE_TEST']
+    cfg.INPUT.MAX_SIZE_TRAIN = custom_cfg['INPUT']['MAX_SIZE_TRAIN']
+    cfg.INPUT.MAX_SIZE_TEST = custom_cfg['INPUT']['MAX_SIZE_TEST']
+    
+    # LSJ augmentation
+    if custom_cfg['INPUT']['USE_LSJ']:
+        cfg.INPUT.DATASET_MAPPER_NAME = "coco_instance_lsj"
+        cfg.INPUT.IMAGE_SIZE = custom_cfg['INPUT']['IMAGE_SIZE']
+        cfg.INPUT.MIN_SCALE = custom_cfg['INPUT']['LSJ_MIN_SCALE']
+        cfg.INPUT.MAX_SCALE = custom_cfg['INPUT']['LSJ_MAX_SCALE']
+    
     cfg.INPUT.MASK_FORMAT = "bitmask"
     
-    # Output directory
-    cfg.OUTPUT_DIR = f"outputs/{MODEL_NAME}"
+    # Output directory with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = custom_cfg['OUTPUT']['DIR'].format(model_name=model_name, timestamp=timestamp)
+    cfg.OUTPUT_DIR = output_dir
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     
+    # Performance settings
+    cfg.SOLVER.AMP.ENABLED = custom_cfg['PERFORMANCE']['USE_AMP']
+    cfg.CUDNN_BENCHMARK = custom_cfg['PERFORMANCE']['CUDNN_BENCHMARK']
+    
     # DataLoader
-    cfg.DATALOADER.NUM_WORKERS = 4
+    cfg.DATALOADER.NUM_WORKERS = custom_cfg['TRAINING']['NUM_WORKERS']
     cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS = True
+    
+    # Advanced Mask2Former settings
+    cfg.MODEL.MASK_FORMER.NUM_OBJECT_QUERIES = custom_cfg['ADVANCED']['NUM_QUERIES']
+    cfg.MODEL.MASK_FORMER.DEC_LAYERS = custom_cfg['ADVANCED']['DEC_LAYERS']
+    cfg.MODEL.MASK_FORMER.DIM_FEEDFORWARD = custom_cfg['ADVANCED']['DIM_FEEDFORWARD']
+    cfg.MODEL.MASK_FORMER.HIDDEN_DIM = custom_cfg['ADVANCED']['HIDDEN_DIM']
+    cfg.MODEL.MASK_FORMER.DROPOUT = custom_cfg['ADVANCED']['DROPOUT']
+    cfg.MODEL.MASK_FORMER.NHEADS = custom_cfg['ADVANCED']['NHEADS']
+    cfg.MODEL.MASK_FORMER.CLASS_WEIGHT = custom_cfg['ADVANCED']['CLASS_WEIGHT']
+    cfg.MODEL.MASK_FORMER.DICE_WEIGHT = custom_cfg['ADVANCED']['DICE_WEIGHT']
+    cfg.MODEL.MASK_FORMER.MASK_WEIGHT = custom_cfg['ADVANCED']['MASK_WEIGHT']
+    cfg.MODEL.MASK_FORMER.NO_OBJECT_WEIGHT = custom_cfg['ADVANCED']['NO_OBJECT_WEIGHT']
+    cfg.MODEL.MASK_FORMER.TRAIN_NUM_POINTS = custom_cfg['ADVANCED']['TRAIN_NUM_POINTS']
+    cfg.MODEL.MASK_FORMER.OVERSAMPLE_RATIO = custom_cfg['ADVANCED']['OVERSAMPLE_RATIO']
+    cfg.MODEL.MASK_FORMER.IMPORTANCE_SAMPLE_RATIO = custom_cfg['ADVANCED']['IMPORTANCE_SAMPLE_RATIO']
+    
+    # Seed
+    if custom_cfg['ADVANCED']['SEED'] != -1:
+        cfg.SEED = custom_cfg['ADVANCED']['SEED']
+    
+    # Visualization
+    cfg.VIS_PERIOD = custom_cfg['LOGGING']['VIS_PERIOD']
     
     if args:
         cfg.merge_from_list(args.opts)
@@ -251,8 +317,18 @@ def setup_cfg(args=None):
 
 def main(args):
     """Main training function."""
+    # Load custom configuration
+    config_path = args.custom_config if hasattr(args, 'custom_config') else "configs/custom_training_config.yaml"
+    if not Path(config_path).exists():
+        print(f"❌ Config file not found: {config_path}")
+        print("   Please specify with --custom-config or create configs/custom_training_config.yaml")
+        return
+    
+    print(f"📋 Loading configuration from: {config_path}")
+    custom_cfg = load_custom_config(config_path)
+    
     print("\n" + "="*70)
-    print(f"MASK2FORMER TRAINING - {MODEL_NAME.upper()}")
+    print(f"MASK2FORMER TRAINING - {custom_cfg['MODEL']['NAME'].upper()}")
     print("="*70)
     
     # Check GPU
@@ -264,7 +340,7 @@ def main(args):
     
     # Register datasets
     print("\n📊 Registering datasets...")
-    train_ok, val_ok = register_datasets()
+    train_ok, val_ok = register_datasets(custom_cfg)
     
     if not train_ok:
         print("❌ Training dataset not found!")
@@ -272,13 +348,28 @@ def main(args):
     
     # Setup configuration
     print(f"\n⚙️ Setting up configuration...")
-    cfg = setup_cfg(args)
+    cfg = setup_cfg(custom_cfg, args)
     
-    print("\n📋 Configuration:")
-    print(f"  Classes: {cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES}")
-    print(f"  Batch size: {cfg.SOLVER.IMS_PER_BATCH}")
-    print(f"  Learning rate: {cfg.SOLVER.BASE_LR}")
-    print(f"  Max iterations: {cfg.SOLVER.MAX_ITER}")
+    # Save custom config to output directory
+    output_config_path = Path(cfg.OUTPUT_DIR) / "custom_config.yaml"
+    with open(output_config_path, 'w') as f:
+        yaml.dump(custom_cfg, f, default_flow_style=False)
+    print(f"✓ Saved configuration to: {output_config_path}")
+    
+    print("\n📋 Training Configuration:")
+    print(f"  Model: {custom_cfg['MODEL']['NAME']}")
+    print(f"  Classes: {custom_cfg['MODEL']['NUM_CLASSES']}")
+    print(f"  Batch size: {custom_cfg['TRAINING']['BATCH_SIZE']}")
+    print(f"  Learning rate: {custom_cfg['OPTIMIZER']['BASE_LR']}")
+    print(f"  Training mode: {custom_cfg['TRAINING']['MODE']}")
+    
+    if custom_cfg['TRAINING']['MODE'] == 'epochs':
+        print(f"  Max epochs: {custom_cfg['TRAINING']['MAX_EPOCHS']}")
+        print(f"  Eval every: {custom_cfg['EVALUATION']['EVAL_PERIOD_EPOCHS']} epochs")
+    else:
+        print(f"  Max iterations: {custom_cfg['TRAINING']['MAX_ITERATIONS']}")
+        print(f"  Eval every: {custom_cfg['EVALUATION']['EVAL_PERIOD_ITERS']} iterations")
+    
     print(f"  Output: {cfg.OUTPUT_DIR}")
     
     # Setup logger
@@ -295,9 +386,11 @@ def main(args):
 
 if __name__ == "__main__":
     parser = default_argument_parser()
+    parser.add_argument("--custom-config", default="configs/custom_training_config.yaml",
+                       help="path to custom YAML config file")
     args = parser.parse_args()
     
-    print("Launching Mask2Former training...")
+    print("Launching Mask2Former training with custom configuration...")
     launch(
         main,
         args.num_gpus,
