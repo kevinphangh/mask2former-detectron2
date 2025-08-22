@@ -24,6 +24,10 @@ Place your COCO-format dataset in:
 ```bash
 python train.py
 ```
+or
+```bash
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6 python train.py
+```
 
 ## Configuration
 

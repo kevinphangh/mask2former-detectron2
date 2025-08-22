@@ -196,12 +196,27 @@ def setup_cfg(args=None):
     cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 2  # Adjust based on your dataset
     
     # Training parameters (optimized for 6GB GPU)
-    cfg.SOLVER.IMS_PER_BATCH = 1  # Batch size
+    cfg.SOLVER.IMS_PER_BATCH = 2  # Batch size
     cfg.SOLVER.BASE_LR = 0.00005  # Learning rate
-    cfg.SOLVER.MAX_ITER = 3000  # Training iterations
-    cfg.SOLVER.STEPS = (2000, 2700)  # LR decay steps
-    cfg.SOLVER.CHECKPOINT_PERIOD = 500
-    cfg.TEST.EVAL_PERIOD = 500
+    
+    # Choose between iteration-based or epoch-based configuration
+    USE_EPOCHS = False  # Set to True to use epoch-based configuration
+    
+    if USE_EPOCHS:
+        # Epoch-based configuration (84 images, batch size 2 = 42 iters/epoch)
+        IMAGES_PER_EPOCH = 84
+        ITERS_PER_EPOCH = IMAGES_PER_EPOCH // cfg.SOLVER.IMS_PER_BATCH
+        TARGET_EPOCHS = 50
+        cfg.SOLVER.MAX_ITER = TARGET_EPOCHS * ITERS_PER_EPOCH  # 50 epochs
+        cfg.SOLVER.STEPS = (30 * ITERS_PER_EPOCH, 40 * ITERS_PER_EPOCH)  # LR decay at 30, 40 epochs
+        cfg.SOLVER.CHECKPOINT_PERIOD = 5 * ITERS_PER_EPOCH  # Every 5 epochs
+        cfg.TEST.EVAL_PERIOD = 2 * ITERS_PER_EPOCH  # Every 2 epochs
+    else:
+        # Iteration-based configuration (current)
+        cfg.SOLVER.MAX_ITER = 3000  # ~71 epochs with batch size 2
+        cfg.SOLVER.STEPS = (2000, 2700)  # LR decay steps
+        cfg.SOLVER.CHECKPOINT_PERIOD = 500  # Every ~12 epochs
+        cfg.TEST.EVAL_PERIOD = 500  # Every ~12 epochs
     
     # Weight decay
     cfg.SOLVER.WEIGHT_DECAY = 0.05
