@@ -15,20 +15,33 @@ fi
 echo ""
 echo "📦 Installing dependencies..."
 
+# Detect if we're in a virtual environment or need system packages flag
+PIP_FLAGS=""
+if [[ "$VIRTUAL_ENV" == "" ]]; then
+    # Check if the system requires --break-system-packages (Debian/Ubuntu)
+    if pip install --help 2>&1 | grep -q "break-system-packages"; then
+        PIP_FLAGS="--break-system-packages"
+        echo "Note: Installing with --break-system-packages flag"
+    fi
+fi
+
 # Install PyTorch with CUDA support
 echo "Installing PyTorch with CUDA 12.1..."
-pip install --break-system-packages torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install $PIP_FLAGS torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
 # Install Detectron2
 echo ""
 echo "Installing Detectron2..."
-python -m pip install --break-system-packages 'git+https://github.com/facebookresearch/detectron2.git'
+python -m pip install $PIP_FLAGS 'git+https://github.com/facebookresearch/detectron2.git'
+
+# Get the project root directory (parent of scripts folder)
+PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 
 # Verify Mask2Former is present
 echo ""
-if [ ! -d "Mask2Former" ]; then
+if [ ! -d "$PROJECT_ROOT/Mask2Former" ]; then
     echo "❌ Mask2Former directory not found!"
-    echo "   Please ensure you're in the project root directory"
+    echo "   Please ensure the Mask2Former folder exists in: $PROJECT_ROOT"
     exit 1
 else
     echo "✓ Mask2Former directory found"
@@ -37,13 +50,13 @@ fi
 # Install Mask2Former requirements
 echo ""
 echo "Installing Mask2Former requirements..."
-cd Mask2Former
-pip install --break-system-packages -r requirements.txt
+cd "$PROJECT_ROOT/Mask2Former"
+pip install $PIP_FLAGS -r requirements.txt
 
 # Install additional dependencies
 echo ""
 echo "Installing additional dependencies..."
-pip install --break-system-packages opencv-python
+pip install $PIP_FLAGS opencv-python
 
 # Compile CUDA kernel for MSDeformAttn
 echo ""
@@ -90,7 +103,7 @@ else
 fi
 
 # Go back to project root
-cd ../../../..
+cd "$PROJECT_ROOT"
 
 echo ""
 echo "=================================================="
@@ -98,9 +111,8 @@ echo "✓ Setup complete!"
 echo "=================================================="
 echo ""
 echo "To train Mask2Former, run:"
-echo "  python scripts/train.py"
+echo "  python train.py"
 echo ""
 echo "Configuration can be modified in:"
-echo "  scripts/train.py  (training parameters)"
-echo "  configs/mask2former/default.yaml  (model config)"
+echo "  train.py  (training parameters)"
 echo ""
