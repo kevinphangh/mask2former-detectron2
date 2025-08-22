@@ -16,7 +16,7 @@ mask2former-detectron2/
 ├── configs/                 # Configuration files
 ├── data/                    # Dataset directory
 ├── outputs/                 # Training outputs
-└── Mask2Former/            # Mask2Former submodule
+└── Mask2Former/            # Mask2Former implementation (integrated)
 ```
 
 ## 🚀 Quick Start
@@ -72,24 +72,13 @@ data/
 
 ### 4. Train Model
 
-**Quick Start (Recommended - Handles All Issues):**
-```bash
-# Use the wrapper script that fixes all environment issues
-./train.sh
-
-# This script automatically:
-# - Fixes library compatibility issues
-# - Uses PyTorch fallback if CUDA kernel fails
-# - Handles all environment setup
-```
-
-**Direct Training (if environment is properly configured):**
+**Quick Start (Recommended):**
 ```bash
 # Uses official Facebook Research implementation
 python scripts/train_mask2former.py
 
-# Select model by editing MODEL_NAME in the script (line 88)
-# Options: swin_tiny, swin_small, swin_base, resnet50, resnet101
+# Select model by editing MODEL_NAME in the script (line 85)
+# Options: swin_tiny (6GB GPU), swin_small (8GB), swin_base (16GB)
 ```
 
 **Alternative training scripts:**
@@ -98,7 +87,7 @@ python scripts/train.py         # Basic training
 python scripts/train_swin.py     # Simplified transfer learning
 ```
 
-**Note on CUDA Kernel:** The MSDeformAttn CUDA kernel provides 3-5x speedup. If compilation fails, the training automatically uses a PyTorch fallback that still runs on GPU but is slower. The `train.sh` script handles this automatically.
+**Note on CUDA Kernel:** The MSDeformAttn CUDA kernel provides 3-5x speedup. If compilation fails, the training automatically uses a PyTorch fallback that still runs on GPU but is slower.
 
 ## 🎯 Transfer Learning
 
@@ -143,7 +132,7 @@ cfg.merge_from_file("Mask2Former/configs/coco/instance-segmentation/swin/maskfor
 cfg.MODEL.WEIGHTS = SWIN_SMALL  # URL from above
 
 # Set your classes
-cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 1  # Your number of classes
+cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 2  # Your number of classes
 
 # Fine-tuning parameters
 cfg.SOLVER.BASE_LR = 0.0001
@@ -216,7 +205,8 @@ cfg.INPUT.RANDOM_FLIP = "horizontal"  # or "none", "vertical"
 
 | GPU Memory | Batch Size | Model | Image Size | Mixed Precision |
 |------------|------------|-------|------------|-----------------|
-| 8GB | 1-2 | Swin-Tiny | 640 | Required |
+| 6GB | 1 | Swin-Tiny | 384-512 | Required |
+| 8GB | 1-2 | Swin-Small | 640 | Required |
 | 12GB | 2-4 | Swin-Small | 800 | Recommended |
 | 24GB | 4-8 | Swin-Base | 1024 | Optional |
 

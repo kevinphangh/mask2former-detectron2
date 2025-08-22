@@ -24,14 +24,14 @@ echo ""
 echo "Installing Detectron2..."
 python -m pip install --break-system-packages 'git+https://github.com/facebookresearch/detectron2.git'
 
-# Clone Mask2Former repository if not already present
+# Verify Mask2Former is present
 echo ""
-if [ ! -d "Mask2Former/.git" ]; then
-    echo "Cloning Mask2Former repository..."
-    rm -rf Mask2Former  # Remove empty directory if it exists
-    git clone https://github.com/facebookresearch/Mask2Former.git
+if [ ! -d "Mask2Former" ]; then
+    echo "❌ Mask2Former directory not found!"
+    echo "   Please ensure you're in the project root directory"
+    exit 1
 else
-    echo "Mask2Former repository already exists"
+    echo "✓ Mask2Former directory found"
 fi
 
 # Install Mask2Former requirements
