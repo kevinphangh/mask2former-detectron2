@@ -26,11 +26,12 @@ from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import get_cfg
 from detectron2.data import MetadataCatalog, DatasetCatalog, build_detection_train_loader
 from detectron2.data.datasets import register_coco_instances
-from detectron2.engine import DefaultTrainer, default_argument_parser, default_setup, launch
+from detectron2.engine import DefaultTrainer, default_argument_parser, default_setup, launch, hooks
 from detectron2.evaluation import COCOEvaluator, DatasetEvaluators, verify_results
 from detectron2.projects.deeplab import add_deeplab_config, build_lr_scheduler
 from detectron2.solver.build import maybe_add_gradient_clipping
 from detectron2.utils.logger import setup_logger
+from detectron2.utils.events import EventWriter, get_event_storage
 import detectron2.utils.comm as comm
 
 # Add Mask2Former to path
@@ -98,8 +99,66 @@ def register_datasets(custom_cfg: dict):
     return train_registered, val_registered
 
 
+class EpochPrintHook(hooks.HookBase):
+    """Hook to print epoch information during training."""
+    
+    def __init__(self, max_epochs, iters_per_epoch):
+        self.max_epochs = max_epochs
+        self.iters_per_epoch = iters_per_epoch
+    
+    def after_step(self):
+        # Only print every 20 iterations (matching detectron2's default)
+        if self.trainer.iter > 0 and (self.trainer.iter + 1) % 20 == 0:
+            current_epoch = (self.trainer.iter // self.iters_per_epoch) + 1
+            iter_in_epoch = (self.trainer.iter % self.iters_per_epoch) + 1
+            
+            # Print epoch info on its own line for clarity
+            epoch_str = f"\n📊 [Epoch {current_epoch}/{self.max_epochs}] Progress: {iter_in_epoch}/{self.iters_per_epoch} iterations"
+            print(epoch_str)
+
+
 class Mask2FormerTrainer(DefaultTrainer):
-    """Trainer class for Mask2Former."""
+    """Trainer class for Mask2Former with epoch tracking."""
+
+    def __init__(self, cfg, custom_cfg=None):
+        """Initialize trainer with optional epoch tracking."""
+        self.custom_cfg = custom_cfg
+        
+        # Set up epoch tracking BEFORE calling super().__init__
+        if custom_cfg and custom_cfg.get('TRAINING', {}).get('MODE') == 'epochs':
+            self.epochs_mode = True
+            self.images_per_epoch = custom_cfg['TRAINING']['IMAGES_PER_EPOCH']
+            self.batch_size = custom_cfg['TRAINING']['BATCH_SIZE']
+            self.iters_per_epoch = self.images_per_epoch // self.batch_size
+            self.max_epochs = custom_cfg['TRAINING']['MAX_EPOCHS']
+        else:
+            self.epochs_mode = False
+        
+        # Now call super().__init__ which will call build_hooks
+        super().__init__(cfg)
+    
+    def build_hooks(self):
+        """Build hooks, adding epoch logger if in epoch mode."""
+        ret = super().build_hooks()
+        if self.epochs_mode:
+            ret.insert(-1, EpochPrintHook(self.max_epochs, self.iters_per_epoch))
+        return ret
+    
+    def run_step(self):
+        """Override to add epoch logging."""
+        super().run_step()
+        
+        # Add epoch info to logs if in epoch mode
+        if self.epochs_mode:
+            current_epoch = (self.iter // self.iters_per_epoch) + 1
+            iter_in_epoch = self.iter % self.iters_per_epoch
+            
+            # Add epoch metrics to storage for logging
+            storage = self.storage
+            storage.put_scalar("train/epoch", current_epoch, smoothing_hint=False)
+            storage.put_scalar("train/epoch_progress", 
+                             (iter_in_epoch / self.iters_per_epoch) * 100, 
+                             smoothing_hint=False)
 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
@@ -364,8 +423,12 @@ def main(args):
     print(f"  Training mode: {custom_cfg['TRAINING']['MODE']}")
     
     if custom_cfg['TRAINING']['MODE'] == 'epochs':
+        iters_per_epoch = custom_cfg['TRAINING']['IMAGES_PER_EPOCH'] // custom_cfg['TRAINING']['BATCH_SIZE']
+        total_iters = custom_cfg['TRAINING']['MAX_EPOCHS'] * iters_per_epoch
         print(f"  Max epochs: {custom_cfg['TRAINING']['MAX_EPOCHS']}")
-        print(f"  Eval every: {custom_cfg['EVALUATION']['EVAL_PERIOD_EPOCHS']} epochs")
+        print(f"  Iterations per epoch: {iters_per_epoch}")
+        print(f"  Total iterations: {total_iters}")
+        print(f"  Eval every: {custom_cfg['EVALUATION']['EVAL_PERIOD_EPOCHS']} epochs ({custom_cfg['EVALUATION']['EVAL_PERIOD_EPOCHS'] * iters_per_epoch} iters)")
     else:
         print(f"  Max iterations: {custom_cfg['TRAINING']['MAX_ITERATIONS']}")
         print(f"  Eval every: {custom_cfg['EVALUATION']['EVAL_PERIOD_ITERS']} iterations")
@@ -378,7 +441,7 @@ def main(args):
     
     # Build trainer
     print("\n🚀 Starting training...")
-    trainer = Mask2FormerTrainer(cfg)
+    trainer = Mask2FormerTrainer(cfg, custom_cfg)
     trainer.resume_or_load(resume=args.resume)
     
     return trainer.train()

@@ -42,7 +42,7 @@ TRAINING:
 |---------|-------------|---------|
 | `MODEL.NAME` | Model size (swin_tiny/small/base) | swin_tiny |
 | `MODEL.NUM_CLASSES` | Number of object classes | 2 |
-| `TRAINING.MODE` | "epochs" or "iterations" | iterations |
+| `TRAINING.MODE` | "epochs" or "iterations" (epochs shows progress) | iterations |
 | `TRAINING.BATCH_SIZE` | Batch size | 2 |
 | `OPTIMIZER.BASE_LR` | Learning rate | 0.00005 |
 
