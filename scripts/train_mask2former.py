@@ -82,7 +82,7 @@ OFFICIAL_MODELS = {
 # ============================================================
 # SELECT YOUR MODEL HERE
 # ============================================================
-MODEL_NAME = "swin_small"  # Options: swin_tiny, swin_small, swin_base, resnet50, resnet101
+MODEL_NAME = "swin_tiny"  # Using smaller model for 6GB GPU memory constraint
 
 
 class Mask2FormerTrainer(DefaultTrainer):
@@ -230,9 +230,9 @@ def setup_cfg(args=None):
     # IMPORTANT: Set number of classes for your dataset
     cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 2  # Adjust based on your dataset
     
-    # Training hyperparameters (adjust based on your GPU and dataset)
-    cfg.SOLVER.IMS_PER_BATCH = 2  # Batch size
-    cfg.SOLVER.BASE_LR = 0.0001  # Learning rate for transfer learning
+    # Training hyperparameters (optimized for 6GB GPU)
+    cfg.SOLVER.IMS_PER_BATCH = 1  # Reduced batch size for memory
+    cfg.SOLVER.BASE_LR = 0.00005  # Adjusted LR for smaller batch
     cfg.SOLVER.MAX_ITER = 3000  # Training iterations
     cfg.SOLVER.STEPS = (2000, 2700)  # LR decay steps
     cfg.SOLVER.CHECKPOINT_PERIOD = 500
@@ -246,11 +246,11 @@ def setup_cfg(args=None):
     # Backbone learning rate multiplier for transfer learning
     cfg.SOLVER.BACKBONE_MULTIPLIER = 0.1
     
-    # Input configuration
-    cfg.INPUT.MIN_SIZE_TRAIN = (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800)
-    cfg.INPUT.MIN_SIZE_TEST = 800
-    cfg.INPUT.MAX_SIZE_TRAIN = 1333
-    cfg.INPUT.MAX_SIZE_TEST = 1333
+    # Input configuration (reduced sizes for memory)
+    cfg.INPUT.MIN_SIZE_TRAIN = (384, 416, 448, 480, 512)  # Smaller sizes
+    cfg.INPUT.MIN_SIZE_TEST = 512  # Smaller test size
+    cfg.INPUT.MAX_SIZE_TRAIN = 768  # Reduced max size
+    cfg.INPUT.MAX_SIZE_TEST = 768  # Reduced max test size
     
     # Dataset mapper for instance segmentation
     cfg.INPUT.DATASET_MAPPER_NAME = "coco_instance_lsj"
