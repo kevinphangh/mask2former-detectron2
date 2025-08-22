@@ -30,7 +30,34 @@ chmod +x scripts/setup.sh
 ./scripts/setup.sh
 ```
 
-### 2. Prepare Dataset
+**Note:** The setup script will attempt to compile CUDA kernels for MSDeformAttn, which requires the CUDA toolkit (not just drivers). If compilation fails, the training will still work but may be slower. To install CUDA toolkit:
+
+```bash
+# Ubuntu/WSL
+sudo apt update
+sudo apt install nvidia-cuda-toolkit
+
+# Then re-run setup
+./scripts/setup.sh
+```
+
+### 2. Download Pre-trained Models (Optional)
+
+The training scripts automatically download official Mask2Former pre-trained models during first run. For offline training, you can manually download them using the URLs from the Transfer Learning section below:
+
+```bash
+# Create models directory
+mkdir -p models
+
+# Download using wget with URLs from the Transfer Learning section
+# Example for Swin-Small:
+wget -O models/maskformer2_swin_small.pkl $SWIN_SMALL
+
+# Then update scripts/train_swin.py line 41 to use local file:
+cfg.MODEL.WEIGHTS = "models/maskformer2_swin_small.pkl"
+```
+
+### 3. Prepare Dataset
 
 COCO format required:
 ```
@@ -43,17 +70,35 @@ data/
     └── _annotations.coco.json
 ```
 
-### 3. Train Model
+### 4. Train Model
 
-**From scratch:**
+**Quick Start (Recommended - Handles All Issues):**
 ```bash
-python scripts/train.py
+# Use the wrapper script that fixes all environment issues
+./train.sh
+
+# This script automatically:
+# - Fixes library compatibility issues
+# - Uses PyTorch fallback if CUDA kernel fails
+# - Handles all environment setup
 ```
 
-**Transfer learning (recommended):**
+**Direct Training (if environment is properly configured):**
 ```bash
-python scripts/train_swin.py
+# Uses official Facebook Research implementation
+python scripts/train_mask2former.py
+
+# Select model by editing MODEL_NAME in the script (line 88)
+# Options: swin_tiny, swin_small, swin_base, resnet50, resnet101
 ```
+
+**Alternative training scripts:**
+```bash
+python scripts/train.py         # Basic training
+python scripts/train_swin.py     # Simplified transfer learning
+```
+
+**Note on CUDA Kernel:** The MSDeformAttn CUDA kernel provides 3-5x speedup. If compilation fails, the training automatically uses a PyTorch fallback that still runs on GPU but is slower. The `train.sh` script handles this automatically.
 
 ## 🎯 Transfer Learning
 
@@ -115,16 +160,81 @@ cfg.SOLVER.BACKBONE_MULTIPLIER = 0.1
 | `MAX_ITER` | 10000+ | 1000-3000 |
 | `WARMUP_ITERS` | 1000 | 100 |
 
-## ⚙️ Training Configuration
+## ⚙️ Hyperparameter Configuration
 
-Edit parameters in `scripts/train.py` or `scripts/train_swin.py`:
+### Where to Configure
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `NUM_CLASSES` | 1 | Number of object classes |
-| `IMS_PER_BATCH` | 2 | Batch size |
-| `BASE_LR` | 0.0001 | Learning rate |
-| `MAX_ITER` | 3000 | Training iterations |
+1. **Training Scripts** (`scripts/train.py` or `scripts/train_swin.py`):
+   - Primary location for hyperparameter tuning
+   - Edit the `setup_cfg()` function
+   - Changes take effect immediately
+
+2. **Config Files** (`configs/mask2former/default.yaml`):
+   - For persistent configuration across runs
+   - Load with: `cfg.merge_from_file("configs/mask2former/default.yaml")`
+
+3. **Command Line** (override any parameter):
+   ```bash
+   python scripts/train_swin.py --opts SOLVER.BASE_LR 0.0002 SOLVER.MAX_ITER 5000
+   ```
+
+### Key Hyperparameters
+
+#### Model Configuration
+```python
+# In scripts/train_swin.py, lines 46-62
+cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 2  # Number of classes in your dataset
+cfg.MODEL.MASK_FORMER.NUM_OBJECT_QUERIES = 100  # Max objects per image
+cfg.MODEL.MASK_FORMER.DEC_LAYERS = 9  # Decoder layers (9 for Swin, 6 for ResNet)
+```
+
+#### Training Parameters
+```python
+# In scripts/train_swin.py, lines 68-77
+cfg.SOLVER.IMS_PER_BATCH = 2  # Batch size (reduce if OOM)
+cfg.SOLVER.BASE_LR = 0.0001  # Learning rate
+cfg.SOLVER.MAX_ITER = 3000  # Total training iterations
+cfg.SOLVER.STEPS = (2000, 2700)  # LR decay milestones
+cfg.SOLVER.CHECKPOINT_PERIOD = 500  # Save checkpoint every N iterations
+```
+
+#### Transfer Learning
+```python
+# In scripts/train_swin.py, line 87
+cfg.SOLVER.BACKBONE_MULTIPLIER = 0.1  # Backbone LR = BASE_LR * 0.1
+```
+
+#### Data Augmentation
+```python
+# In scripts/train_swin.py, lines 104-111
+cfg.INPUT.MIN_SIZE_TRAIN = (480, 512, 544, 576, 608, 640)  # Random resize
+cfg.INPUT.MAX_SIZE_TRAIN = 1333
+cfg.INPUT.RANDOM_FLIP = "horizontal"  # or "none", "vertical"
+```
+
+### Recommended Settings by GPU Memory
+
+| GPU Memory | Batch Size | Model | Image Size | Mixed Precision |
+|------------|------------|-------|------------|-----------------|
+| 8GB | 1-2 | Swin-Tiny | 640 | Required |
+| 12GB | 2-4 | Swin-Small | 800 | Recommended |
+| 24GB | 4-8 | Swin-Base | 1024 | Optional |
+
+### Quick Tuning Guide
+
+```python
+# For small datasets (<1000 images)
+cfg.SOLVER.MAX_ITER = 1000-2000
+cfg.SOLVER.BASE_LR = 0.00005
+
+# For medium datasets (1000-5000 images)
+cfg.SOLVER.MAX_ITER = 3000-5000
+cfg.SOLVER.BASE_LR = 0.0001
+
+# For large datasets (>5000 images)
+cfg.SOLVER.MAX_ITER = 10000+
+cfg.SOLVER.BASE_LR = 0.00025
+```
 
 ## 📊 Output Structure
 
@@ -136,14 +246,6 @@ outputs/experiments/
 └── events.out.tfevents.*  # TensorBoard logs
 ```
 
-## 🔧 Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| CUDA kernel compilation fails | Install gcc-11: `sudo apt install gcc-11 g++-11` |
-| Out of memory | Reduce batch size or use smaller model |
-| Missing masks | Ensure COCO annotations include segmentation polygons |
-| High initial loss | Normal with transfer learning, decreases after warmup |
 
 ## 📚 Inference
 

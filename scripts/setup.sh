@@ -24,6 +24,16 @@ echo ""
 echo "Installing Detectron2..."
 python -m pip install --break-system-packages 'git+https://github.com/facebookresearch/detectron2.git'
 
+# Clone Mask2Former repository if not already present
+echo ""
+if [ ! -d "Mask2Former/.git" ]; then
+    echo "Cloning Mask2Former repository..."
+    rm -rf Mask2Former  # Remove empty directory if it exists
+    git clone https://github.com/facebookresearch/Mask2Former.git
+else
+    echo "Mask2Former repository already exists"
+fi
+
 # Install Mask2Former requirements
 echo ""
 echo "Installing Mask2Former requirements..."
@@ -44,16 +54,25 @@ cd mask2former/modeling/pixel_decoder/ops
 if [ -z "$CUDA_HOME" ]; then
     echo "⚠️ CUDA_HOME not set. Trying to detect CUDA installation..."
     
+    # Check if nvcc exists (Ubuntu apt style installation)
+    if command -v nvcc &> /dev/null; then
+        # nvcc is in /usr/bin, so CUDA_HOME should be /usr
+        export CUDA_HOME="/usr"
+        echo "Found nvcc at $(which nvcc)"
     # Try common CUDA locations
-    if [ -d "/usr/local/cuda" ]; then
+    elif [ -d "/usr/local/cuda" ]; then
         export CUDA_HOME="/usr/local/cuda"
+    elif [ -d "/usr/lib/cuda" ]; then
+        # Ubuntu/Debian style installation from apt (alternate location)
+        export CUDA_HOME="/usr/lib/cuda"
     elif [ -d "/usr/local/cuda-12.1" ]; then
         export CUDA_HOME="/usr/local/cuda-12.1"
     elif [ -d "/usr/local/cuda-11.8" ]; then
         export CUDA_HOME="/usr/local/cuda-11.8"
     else
         echo "❌ Could not find CUDA installation. Please set CUDA_HOME manually."
-        echo "   Example: export CUDA_HOME=/usr/local/cuda"
+        echo "   For Ubuntu/WSL with apt-installed CUDA: export CUDA_HOME=/usr"
+        echo "   For standard CUDA installation: export CUDA_HOME=/usr/local/cuda"
         exit 1
     fi
     

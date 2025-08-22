@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Mask2Former Training with Swin-Small backbone and transfer learning.
-Optimized for small datasets with pre-trained COCO weights.
+Mask2Former Training with Official Pre-trained Models from Facebook Research.
+Uses transfer learning from official Mask2Former COCO weights.
+Repository: https://github.com/facebookresearch/Mask2Former
 """
 
 import os
@@ -22,23 +23,69 @@ from mask2former import add_maskformer2_config
 from src.training import Mask2FormerTrainer
 from src.utils import register_datasets
 
+# Official Mask2Former Pre-trained Models (Facebook Research)
+# Source: https://github.com/facebookresearch/Mask2Former/blob/main/MODEL_ZOO.md
+OFFICIAL_MODELS = {
+    "swin_tiny": {
+        "config": "Mask2Former/configs/coco/instance-segmentation/swin/maskformer2_swin_tiny_bs16_50ep.yaml",
+        "weights": "https://dl.fbaipublicfiles.com/maskformer/mask2former/coco/instance/maskformer2_swin_tiny_bs16_50ep/model_final_86143f.pkl",
+        "description": "Swin-Tiny (28M params, fastest)"
+    },
+    "swin_small": {
+        "config": "Mask2Former/configs/coco/instance-segmentation/swin/maskformer2_swin_small_bs16_50ep.yaml",
+        "weights": "https://dl.fbaipublicfiles.com/maskformer/mask2former/coco/instance/maskformer2_swin_small_bs16_50ep/model_final_1e7f22.pkl",
+        "description": "Swin-Small (50M params, recommended)"
+    },
+    "swin_base": {
+        "config": "Mask2Former/configs/coco/instance-segmentation/swin/maskformer2_swin_base_IN21k_384_bs16_50ep.yaml",
+        "weights": "https://dl.fbaipublicfiles.com/maskformer/mask2former/coco/instance/maskformer2_swin_base_IN21k_384_bs16_50ep/model_final_83d103.pkl",
+        "description": "Swin-Base (88M params, best accuracy)"
+    },
+    "resnet50": {
+        "config": "Mask2Former/configs/coco/instance-segmentation/maskformer2_R50_bs16_50ep.yaml",
+        "weights": "https://dl.fbaipublicfiles.com/maskformer/mask2former/coco/instance/maskformer2_R50_bs16_50ep/model_final_3c8ec9.pkl",
+        "description": "ResNet-50 (44M params)"
+    },
+    "resnet101": {
+        "config": "Mask2Former/configs/coco/instance-segmentation/maskformer2_R101_bs16_50ep.yaml",
+        "weights": "https://dl.fbaipublicfiles.com/maskformer/mask2former/coco/instance/maskformer2_R101_bs16_50ep/model_final_eba159.pkl",
+        "description": "ResNet-101 (63M params)"
+    }
+}
+
+# ==================== SELECT YOUR MODEL ====================
+# Choose from official Mask2Former pre-trained models:
+#   - "swin_tiny"   : 28M params, fastest, good for testing
+#   - "swin_small"  : 50M params, recommended balance
+#   - "swin_base"   : 88M params, best accuracy (needs 16GB+ GPU)
+#   - "resnet50"    : 44M params, classic CNN backbone
+#   - "resnet101"   : 63M params, deeper ResNet variant
+# ============================================================
+MODEL_NAME = "swin_small"  # <-- CHANGE THIS TO SELECT MODEL
+
 
 def setup_cfg():
     """
-    Setup configuration for Mask2Former with Swin-Small backbone.
-    Uses transfer learning from COCO pre-trained weights.
+    Setup configuration for official Mask2Former pre-trained models.
+    Uses transfer learning from official Facebook Research COCO weights.
     """
     cfg = get_cfg()
     add_deeplab_config(cfg)
     add_maskformer2_config(cfg)
     
-    # Load Mask2Former with Swin-Small configuration
-    config_file = project_root / "Mask2Former/configs/coco/instance-segmentation/swin/maskformer2_swin_small_bs16_50ep.yaml"
+    # Load official Mask2Former configuration
+    model_info = OFFICIAL_MODELS[MODEL_NAME]
+    config_file = project_root / model_info["config"]
     cfg.merge_from_file(str(config_file))
     
-    # TRANSFER LEARNING: Use pre-trained COCO weights
-    # Download URL for Swin-Small Mask2Former trained on COCO
-    cfg.MODEL.WEIGHTS = "https://dl.fbaipublicfiles.com/maskformer/mask2former/coco/instance/maskformer2_swin_small_bs16_50ep/model_final_1e7f22.pkl"
+    # Use official pre-trained weights from Facebook Research
+    cfg.MODEL.WEIGHTS = model_info["weights"]
+    
+    # Check if using local downloaded model
+    local_model_path = project_root / f"models/maskformer2_{MODEL_NAME}.pkl"
+    if local_model_path.exists():
+        print(f"✓ Using local model: {local_model_path}")
+        cfg.MODEL.WEIGHTS = str(local_model_path)
     
     # Model configuration
     cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -47,18 +94,30 @@ def setup_cfg():
     # Dataset has 2 classes: low_diff and pickable_surface
     cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 2  # Two classes in dataset
     
-    # Swin-Small specific settings
-    cfg.MODEL.SWIN.EMBED_DIM = 96
-    cfg.MODEL.SWIN.DEPTHS = [2, 2, 18, 2]
-    cfg.MODEL.SWIN.NUM_HEADS = [3, 6, 12, 24]
-    cfg.MODEL.SWIN.WINDOW_SIZE = 7
-    cfg.MODEL.SWIN.APE = False  # Absolute position embedding
-    cfg.MODEL.SWIN.DROP_PATH_RATE = 0.3
-    cfg.MODEL.SWIN.PATCH_NORM = True
+    # Model-specific settings (only for Swin models)
+    if "swin" in MODEL_NAME:
+        if MODEL_NAME == "swin_tiny":
+            cfg.MODEL.SWIN.EMBED_DIM = 96
+            cfg.MODEL.SWIN.DEPTHS = [2, 2, 6, 2]
+            cfg.MODEL.SWIN.NUM_HEADS = [3, 6, 12, 24]
+        elif MODEL_NAME == "swin_small":
+            cfg.MODEL.SWIN.EMBED_DIM = 96
+            cfg.MODEL.SWIN.DEPTHS = [2, 2, 18, 2]
+            cfg.MODEL.SWIN.NUM_HEADS = [3, 6, 12, 24]
+        elif MODEL_NAME == "swin_base":
+            cfg.MODEL.SWIN.EMBED_DIM = 128
+            cfg.MODEL.SWIN.DEPTHS = [2, 2, 18, 2]
+            cfg.MODEL.SWIN.NUM_HEADS = [4, 8, 16, 32]
+        
+        cfg.MODEL.SWIN.WINDOW_SIZE = 7
+        cfg.MODEL.SWIN.APE = False  # Absolute position embedding
+        cfg.MODEL.SWIN.DROP_PATH_RATE = 0.3
+        cfg.MODEL.SWIN.PATCH_NORM = True
     
     # Mask2Former specific settings
     cfg.MODEL.MASK_FORMER.NUM_OBJECT_QUERIES = 100
-    cfg.MODEL.MASK_FORMER.DEC_LAYERS = 9  # Number of decoder layers
+    # Decoder layers: 9 for Swin models, 6 for ResNet models
+    cfg.MODEL.MASK_FORMER.DEC_LAYERS = 9 if "swin" in MODEL_NAME else 6
     
     # Dataset configuration
     cfg.DATASETS.TRAIN = ("custom_train",)
@@ -110,8 +169,8 @@ def setup_cfg():
     cfg.INPUT.RANDOM_FLIP = "horizontal"
     cfg.INPUT.FORMAT = "RGB"
     
-    # Output directory
-    cfg.OUTPUT_DIR = "outputs/experiments/swin_small_transfer"
+    # Output directory based on selected model
+    cfg.OUTPUT_DIR = f"outputs/experiments/{MODEL_NAME}_transfer"
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     
     # DataLoader
@@ -125,10 +184,12 @@ def setup_cfg():
 
 
 def main():
-    """Main training function with transfer learning."""
+    """Main training function with official Mask2Former models."""
+    model_info = OFFICIAL_MODELS[MODEL_NAME]
     print("\n" + "="*70)
-    print("MASK2FORMER TRAINING WITH SWIN-SMALL BACKBONE")
-    print("Transfer Learning from COCO Pre-trained Weights")
+    print("MASK2FORMER TRAINING WITH OFFICIAL PRE-TRAINED MODELS")
+    print(f"Model: {model_info['description']}")
+    print("Transfer Learning from Official Facebook Research COCO Weights")
     print("="*70)
     
     # Check GPU availability
@@ -147,15 +208,15 @@ def main():
         return
     
     # Setup configuration
-    print("\n⚙️ Setting up Swin-Small configuration...")
+    print(f"\n⚙️ Setting up {MODEL_NAME.replace('_', '-').title()} configuration...")
     cfg = setup_cfg()
     
     # Print configuration summary
     print("\n" + "="*70)
     print("📋 TRAINING CONFIGURATION")
     print("="*70)
-    print(f"  Model: Mask2Former with Swin-Small backbone")
-    print(f"  Pre-trained weights: COCO Instance Segmentation")
+    print(f"  Model: Official Mask2Former - {model_info['description']}")
+    print(f"  Pre-trained weights: Facebook Research COCO Instance Segmentation")
     print(f"  Transfer Learning: ✓ Enabled")
     print(f"  Number of classes: {cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES}")
     print(f"  Batch size: {cfg.SOLVER.IMS_PER_BATCH}")
@@ -174,8 +235,9 @@ def main():
     trainer.resume_or_load(resume=False)
     
     # Start training
-    print("\n🚀 Starting training with transfer learning...")
-    print("   This will download pre-trained weights (~400MB) on first run.")
+    print("\n🚀 Starting training with official Mask2Former models...")
+    print(f"   Using: {model_info['description']}")
+    print("   Weights will be downloaded from Facebook Research on first run.")
     print("="*70 + "\n")
     
     # Train the model
